@@ -97,7 +97,8 @@ def main():
         matches = [r for page in pages for r in page if r['tag_name'] == args.version]
         if len(matches) != 1:
             raise SystemExit('Could not identify draft; inspect before publishing')
-        release = api(f'repos/{REPO}/releases/{matches[0]['id']}')
+        release_id = matches[0]['id']
+        release = api(f'repos/{REPO}/releases/{release_id}')
         if not release['draft'] or release['target_commitish'] != sha:
             raise SystemExit('Draft target mismatch; inspect before publishing')
         uploaded = {a['name']: (a['size'], a.get('digest'), a['state']) for a in release['assets']}
