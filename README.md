@@ -84,6 +84,6 @@ go vet ./...
 3. 检查：`python3 scripts/release.py vX.Y.Z --run-id RUN_ID --notes release-notes/vX.Y.Z.md --check-only`
 4. 发布：去掉 `--check-only` 后执行同一命令。默认创建预览版；明确要稳定版时加 `--stable`。
 
-脚本要求干净的 main、远端相同提交、正确的成功工作流和三平台 job，下载并校验所有制品，再创建带准确 commit 的新版本标签和草稿 Release，确认资产完整后发布。既有版本不会被覆盖。中途失败可能留下草稿，先检查草稿，不要盲目重复发布或移动标签。当前脚本固定针对 jeanlyn/mygo-editor；不需要将令牌写入仓库。
+脚本要求干净的工作区、当前提交与远端 main 相同（支持隔离 worktree）、正确的成功工作流和三平台 job，下载并校验所有制品，再创建带准确 commit 的新版本标签和草稿 Release，核对远端资产大小与 SHA-256 后发布。既有版本不会被覆盖。中途失败可能留下标签和草稿，先检查草稿，不要盲目重复发布或移动标签。当前脚本固定针对 jeanlyn/mygo-editor；不需要将令牌写入仓库。
 
 Release 直接提供三个内层平台包和统一 SHA256SUMS.txt，不再需要解压 Actions 的外层 ZIP。项目自身许可证尚未确定；第三方组件通知见 THIRD_PARTY_NOTICES.md。

@@ -63,8 +63,6 @@ def main():
         parser.error('Release notes file is missing')
     if run('git', 'status', '--porcelain'):
         raise SystemExit('Commit or stash changes before releasing')
-    if run('git', 'branch', '--show-current') != 'main':
-        raise SystemExit('Release from main only')
     sha = run('git', 'rev-parse', 'HEAD')
     if api(f'repos/{REPO}/git/ref/heads/main')['object']['sha'] != sha:
         raise SystemExit('Push main before releasing; remote HEAD differs')
@@ -86,17 +84,28 @@ def main():
             return
         notes = directory / 'release-notes.md'
         notes.write_text(args.notes.read_text() + f'\n\nCommit: `{sha}`\nBuild: https://github.com/{REPO}/actions/runs/{args.run_id}\n', encoding='utf-8')
-        command = ['gh', 'release', 'create', args.version, '--repo', REPO, '--target', sha,
+        # Create the exact tag atomically; never reuse a concurrent tag.
+        run('gh', 'api', f'repos/{REPO}/git/refs', '-f', f'ref=refs/tags/{args.version}', '-f', f'sha={sha}')
+        command = ['gh', 'release', 'create', args.version, '--repo', REPO, '--verify-tag', '--target', sha,
                    '--title', f'MyGo Editor {args.version}', '--notes-file', str(notes), '--draft']
         if not args.stable:
             command += ['--prerelease']
         command += [str(p) for p in assets]
         # On partial failure leave the draft for inspection; never retry blindly.
         print(run(*command))
-        release = api(f'repos/{REPO}/releases/tags/{args.version}')
-        uploaded = {a['name']: a['size'] for a in release['assets']}
-        if uploaded != {p.name: p.stat().st_size for p in assets}:
-            raise SystemExit('Draft asset mismatch; inspect draft before publishing')
+        pages = json.loads(run('gh', 'api', '--paginate', '--slurp', f'repos/{REPO}/releases?per_page=100'))
+        matches = [r for page in pages for r in page if r['tag_name'] == args.version]
+        if len(matches) != 1:
+            raise SystemExit('Could not identify draft; inspect before publishing')
+        release = api(f'repos/{REPO}/releases/{matches[0]['id']}')
+        if not release['draft'] or release['target_commitish'] != sha:
+            raise SystemExit('Draft target mismatch; inspect before publishing')
+        uploaded = {a['name']: (a['size'], a.get('digest'), a['state']) for a in release['assets']}
+        expected = {p.name: (p.stat().st_size, 'sha256:' + hashlib.sha256(p.read_bytes()).hexdigest(), 'uploaded') for p in assets}
+        if uploaded != expected:
+            raise SystemExit('Draft asset size/hash mismatch; inspect before publishing')
+        if api(f'repos/{REPO}/git/ref/tags/{args.version}')['object']['sha'] != sha:
+            raise SystemExit('Release tag moved; inspect before publishing')
         print(run('gh', 'release', 'edit', args.version, '--repo', REPO, '--draft=false',
                   '--latest=' + ('true' if args.stable else 'false')))
         print(f'https://github.com/{REPO}/releases/tag/{args.version}')
