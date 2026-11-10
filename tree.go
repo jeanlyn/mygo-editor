@@ -141,6 +141,12 @@ func ReadTreeDirectory(path string, limit int) ([]*treeNode, bool, error) {
 		symlink := entry.Type()&os.ModeSymlink != 0
 		nodes = append(nodes, &treeNode{Path: filepath.Join(path, entry.Name()), Name: entry.Name(), IsDir: entry.IsDir() && !symlink, Symlink: symlink})
 	}
+	sortTreeNodes(nodes)
+	return nodes, truncated, nil
+}
+
+// sortTreeNodes keeps sorting independent of filesystem case sensitivity.
+func sortTreeNodes(nodes []*treeNode) {
 	sort.Slice(nodes, func(i, j int) bool {
 		a, b := nodes[i], nodes[j]
 		if a.IsDir != b.IsDir {
@@ -152,5 +158,4 @@ func ReadTreeDirectory(path string, limit int) ([]*treeNode, bool, error) {
 		}
 		return a.Name < b.Name
 	})
-	return nodes, truncated, nil
 }

@@ -22,7 +22,7 @@ func TestTreeSortingAndHiddenFiles(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, name := range []string{"z.go", "A.go", "a.go", ".gitignore"} {
+	for _, name := range []string{"z.go", "A.go", "b.go", ".gitignore"} {
 		treeFile(t, filepath.Join(dir, name))
 	}
 	nodes, truncated, err := ReadTreeDirectory(dir, 100)
@@ -39,7 +39,7 @@ func TestTreeSortingAndHiddenFiles(t *testing.T) {
 			t.Fatal("children must be lazy")
 		}
 	}
-	want := []string{".hidden-dir", "Alpha", "zeta", ".gitignore", "A.go", "a.go", "z.go"}
+	want := []string{".hidden-dir", "Alpha", "zeta", ".gitignore", "A.go", "b.go", "z.go"}
 	if !reflect.DeepEqual(names, want) {
 		t.Fatalf("names %v, want %v", names, want)
 	}
@@ -154,8 +154,15 @@ func TestTreeSymlinksAreNotTraversed(t *testing.T) {
 	}
 	// Choosing a symlink root explicitly is supported and canonicalized.
 	tree, err := NewProjectTree(nodes[0].Path)
-	if err != nil || tree.Root.Path != dir {
+	if err != nil {
 		t.Fatalf("explicit root symlink: %v", err)
+	}
+	want, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tree.Root.Path != want {
+		t.Fatalf("root path %q, want canonical path %q", tree.Root.Path, want)
 	}
 }
 
@@ -173,5 +180,25 @@ func TestTreeInvalidRootAndRead(t *testing.T) {
 	}
 	if _, _, err := ReadTreeDirectory(path+"-missing", 100); err == nil {
 		t.Fatal("listed missing root")
+	}
+}
+
+// Case-only names cannot coexist on every filesystem, so exercise the same
+// production sorter with in-memory entries while the disk test covers reading.
+func TestTreeSortingCaseTies(t *testing.T) {
+	nodes := []*treeNode{
+		{Name: "a.go"}, {Name: "zeta", IsDir: true},
+		{Name: "A.go"}, {Name: ".gitignore"},
+		{Name: "alpha", IsDir: true}, {Name: "Alpha", IsDir: true},
+		{Name: "z.go"}, {Name: ".hidden-dir", IsDir: true},
+	}
+	sortTreeNodes(nodes)
+	var names []string
+	for _, node := range nodes {
+		names = append(names, node.Name)
+	}
+	want := []string{".hidden-dir", "Alpha", "alpha", "zeta", ".gitignore", "A.go", "a.go", "z.go"}
+	if !reflect.DeepEqual(names, want) {
+		t.Fatalf("names %v, want %v", names, want)
 	}
 }
