@@ -1,0 +1,5 @@
+{
+  "name": "MyGo Editor",
+  "features": ["project tree", "tabs", "syntax highlighting"],
+  "localOnly": true
+}

@@ -1,0 +1,65 @@
+name: Build desktop downloads
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: desktop-build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows-amd64
+            runner: windows-latest
+            goos: windows
+            goarch: amd64
+          - target: macos-arm64
+            runner: macos-14
+            goos: darwin
+            goarch: arm64
+          - target: macos-amd64
+            runner: macos-15-intel
+            goos: darwin
+            goarch: amd64
+    env:
+      CGO_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test and vet on host
+        shell: bash
+        run: |
+          go test -count=1 ./...
+          go vet ./...
+      - name: Compile
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p build
+          if [ "$GOOS" = windows ]; then
+            go build -buildvcs=false -trimpath -tags mygo_noinspector -ldflags '-s -w -H windowsgui' -o build/mygo-editor.exe .
+          else
+            go build -buildvcs=false -trimpath -tags mygo_noinspector -ldflags '-s -w' -o build/mygo-editor .
+          fi
+      - name: Package download
+        run: python scripts/package.py ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mygo-editor-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
