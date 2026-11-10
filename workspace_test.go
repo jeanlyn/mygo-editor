@@ -86,6 +86,12 @@ func TestTabDirtyUndoAndSaveSnapshot(t *testing.T) {
 func TestSaveConflictAndOverwrite(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "file")
 	putFile(t, p, "old")
+	before, err := os.Stat(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Windows does not expose Unix permission bits such as 0640.
+	wantMode := before.Mode().Perm()
 	w := &workspace{}
 	tab, err := w.Open(p)
 	if err != nil {
@@ -104,9 +110,12 @@ func TestSaveConflictAndOverwrite(t *testing.T) {
 	if getFile(t, p) != "edited" || tab.Dirty() {
 		t.Fatal("overwrite failed")
 	}
-	st, _ := os.Stat(p)
-	if st.Mode().Perm() != 0640 {
-		t.Fatalf("mode %o", st.Mode().Perm())
+	st, err := os.Stat(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Mode().Perm() != wantMode {
+		t.Fatalf("mode %o, want preserved mode %o", st.Mode().Perm(), wantMode)
 	}
 }
 func TestSaveBOMCRLFRoundTrip(t *testing.T) {

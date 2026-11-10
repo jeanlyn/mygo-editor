@@ -23,7 +23,7 @@ jobs:
             goos: windows
             goarch: amd64
           - target: macos-arm64
-            runner: macos-14
+            runner: macos-15
             goos: darwin
             goarch: arm64
           - target: macos-amd64
